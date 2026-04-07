@@ -17,11 +17,11 @@ export const handleChat = async (req: Request, res: Response): Promise<void> => 
 
         if (!message || typeof message !== "string") {
             res.status(400).json({ error: "Message must be a non-empty string." });
-            return
+            return;
         }
 
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite"});
-        const result = await model.generateContent(message);
+        const result = await model.generateContent(`talk like the human Who is talking the interview of another human and this is his reply and make sure u should talk pure like human answer : ${message} , btw ask one follow up question based on this `);
 
         // ✅ Corrected extraction
         const reply = result?.response?.text()?.trim() || "Sorry, I couldn’t generate a reply.";
