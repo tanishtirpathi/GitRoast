@@ -1,11 +1,11 @@
-import cors from "cors";
 import express from "express";
 
 import healthRouter from "./routes/health.route.js";
+import aiRouter from "./routes/ai.routes.js";
+
 
 const app = express();
 
-app.use(cors());
 app.use(express.json());
 
 app.get("/", (_req, res) => {
@@ -13,5 +13,6 @@ app.get("/", (_req, res) => {
 });
 
 app.use("/health", healthRouter);
+app.use("/api/ai", aiRouter);
 
 export default app;
