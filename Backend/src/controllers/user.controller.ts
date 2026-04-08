@@ -1,11 +1,12 @@
 import { Request, Response } from "express"
 import User from "../models/user.model.js"
-import { cookieOptions } from "../types/user.types.js"
+import { cookieOptions as CookieOptions } from "../types/user.types.js"
+import { AuthenticatedRequest } from "../middlewares/auth.middleware.js"
 
 
 
 
-const cookieOptions: cookieOptions = {
+const cookieOptions: CookieOptions = {
     httpOnly: true,
     secure: false, // true in production (https)
     sameSite: "lax" as const,
@@ -44,6 +45,10 @@ export const Signup = async (req: Request, res: Response) => {
 
         await newUser.save();
 
+        const createdUser = await User.findById(newUser._id).select(
+            "-password -RefreshToken",
+        );
+
 
         res.status(201).cookie("accessToken", accessToken, {
             ...cookieOptions,
@@ -51,10 +56,10 @@ export const Signup = async (req: Request, res: Response) => {
         }).cookie("refreshToken", refreshToken, {
                 ...cookieOptions,
                 maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-            }).json({ message: "User created successfully", user: newUser })
+            }).json({ message: "User created successfully", user: createdUser })
 
         console.log(`User created successfully: ${newUser}`)
-        
+
     } catch (error) {
         res.status(500).json({ message: "Server error", error })
         console.log(error)
@@ -100,3 +105,43 @@ export const Login = async (req: Request, res: Response) => {
     }
 }
 
+export const Logout = async (req: Request, res: Response) => {
+    try {
+        const refreshToken = req.cookies?.refreshToken;
+
+        if (refreshToken) {
+            await User.findOneAndUpdate(
+                { RefreshToken: refreshToken },
+                { $set: { RefreshToken: "" } },
+                { new: false },
+            );
+        }
+
+        res.clearCookie("accessToken", cookieOptions)
+            .clearCookie("refreshToken", cookieOptions)
+            .json({ message: "Logged out successfully" })
+
+        console.log("User logged out successfully")
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error })
+        console.log(error)
+    }
+}
+
+export const GetCurrentUser = async (req: AuthenticatedRequest, res: Response) => {
+    try {
+        if (!req.userId) {
+            return res.status(401).json({ message: "Unauthorized" })
+        }
+
+        const user = await User.findById(req.userId).select("-password -RefreshToken")
+        if (!user) {
+            return res.status(404).json({ message: "User not found" })
+        }
+
+        return res.status(200).json({ user })
+    } catch (error) {
+        res.status(500).json({ message: "Server error", error })
+        console.log(error)
+    }
+}
