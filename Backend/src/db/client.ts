@@ -10,6 +10,7 @@ try {
 	}
 
 	await mongoose.connect(ENV.MONGODB_URI);
+	console.log("Connected to MongoDB successfully");
 } catch (error) {
     console.error("Error connecting to MongoDB:", error);
 }
