@@ -12,6 +12,9 @@ const ConvoSchema = new Schema<AIResponse>({
     },
     UserAnswer: {
         type: String,
+    }, 
+    AI: {
+        type: String,
     }
 }, { timestamps: true })
 
