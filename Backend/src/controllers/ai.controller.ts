@@ -1,7 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import "dotenv/config";
-import { Request, Response } from "express";
-
+import {  Response } from "express";
+import Convo from "../models/convo.model.js";
+import { AuthenticatedRequest } from "../middlewares/auth.middleware.js"
 
 const apiKey = process.env.GEMINI_API_KEY;
 
@@ -11,8 +12,15 @@ if (!apiKey) {
 
 const genAI = new GoogleGenerativeAI(apiKey || "default-api-key");
 
-export const handleChat = async (req: Request, res: Response): Promise<void> => {
+export const handleChat = async (req:AuthenticatedRequest, res: Response): Promise<void> => {
     try {
+        const userId = (req as AuthenticatedRequest).userId;
+        
+        if (!userId) {
+             res.status(401).json({ error: "Unauthorized" });
+             console.log("Unauthorized access attempt to /chat endpoint.");
+             return;
+        }
         const { message } = req.body as { message: string };
 
         if (!message || typeof message !== "string") {
@@ -25,7 +33,15 @@ export const handleChat = async (req: Request, res: Response): Promise<void> => 
 
         // ✅ Corrected extraction
         const reply = result?.response?.text()?.trim() || "Sorry, I couldn’t generate a reply.";
-
+       
+        const convo = await Convo.create({ user: userId, UserAnswer: message });
+        if(!convo) {
+            console.error(`Failed to save conversation for user ${userId}`);
+            res.status(500).json({ error: "Failed to save conversation." });
+            return;
+        }
+        await convo.save();
+        
         res.json({ reply });
     } catch (error) {
         console.error("Gemini API Error:", error);
