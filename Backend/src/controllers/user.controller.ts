@@ -8,7 +8,7 @@ import { AuthenticatedRequest } from "../middlewares/auth.middleware.js"
 
 const cookieOptions: CookieOptions = {
     httpOnly: true,
-    secure: false, // true in production (https)
+    secure: false, // true in production
     sameSite: "lax" as const,
 };
 
@@ -92,7 +92,7 @@ export const Login = async (req: Request, res: Response) => {
 
         res.status(200).cookie("accessToken", accessToken, {
             ...cookieOptions,
-            maxAge: 15 * 60 * 1000, // 15 minutes
+            maxAge: 30 * 60 * 1000, // 30 minutes
         })
             .cookie("refreshToken", refreshToken, {
                 ...cookieOptions,
