@@ -3,15 +3,17 @@ import mongoose from "mongoose";
 import { ENV } from "../config/env.js";
 
 export const connectDb = async (): Promise<void> => {
-try {
-    	if (!ENV.MONGODB_URI) {
-        console.log("MONGODB_URI is not set. Skipping database connection.");
-		return;
-	}
+	console.log(process.env.MONGODB_URI)
+	try {
+		if (!ENV.MONGODB_URI) {
+			console.log("MONGODB_URI is not set. Skipping database connection.");
+			return;
+		}
+		await mongoose.connect(ENV.MONGODB_URI);
 
-	await mongoose.connect(ENV.MONGODB_URI);
-	console.log("Connected to MongoDB successfully");
-} catch (error) {
-    console.error("Error connecting to MongoDB:", error);
-}
+		
+		console.log("Connected to MongoDB successfully");
+	} catch (error) {
+		console.error("Error connecting to MongoDB:", error);
+	}
 };
