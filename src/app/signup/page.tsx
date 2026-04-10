@@ -1,12 +1,9 @@
 "use client";
 
+import { ApiError, apiFetch } from "@/libs/api";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useMemo, useState } from "react";
-
-const API_BASE_URL =
-	process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ??
-	"http://localhost:8000";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 type FormState = {
 	name: string;
@@ -24,8 +21,34 @@ export default function SignupPage() {
 	const router = useRouter();
 	const [form, setForm] = useState<FormState>(initialFormState);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+	useEffect(() => {
+		let mounted = true;
+
+		const redirectIfAuthenticated = async () => {
+			try {
+				await apiFetch<{ user?: { name?: string } }>("/api/user/me");
+				if (mounted) {
+					router.replace("/dashboard");
+				}
+			} catch {
+				// If unauthorized, user should remain on this page.
+			} finally {
+				if (mounted) {
+					setIsCheckingAuth(false);
+				}
+			}
+		};
+
+		void redirectIfAuthenticated();
+
+		return () => {
+			mounted = false;
+		};
+	}, [router]);
 
 	const passwordHint = useMemo(() => {
 		if (!form.password) {
@@ -54,28 +77,34 @@ export default function SignupPage() {
 		try {
 			setIsSubmitting(true);
 
-			const response = await fetch(`${API_BASE_URL}/api/user/signup`, {
+			const data = await apiFetch<{ message?: string; user?: unknown }>(
+				"/api/user/signup",
+				{
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				credentials: "include",
 				body: JSON.stringify({
 					name: form.name.trim(),
 					email: form.email.trim(),
 					password: form.password,
 				}),
-			});
+				},
+			);
 
-			const data = (await response.json()) as { message?: string };
-			if (!response.ok) {
-				throw new Error(data.message ?? "Signup failed. Please try again.");
-			}
+			console.log("[signup] Response payload", data);
+            console.log("main user", data.user);
 
 			setSuccessMessage(data.message ?? "Signup successful.");
 			setForm(initialFormState);
 			router.push("/dashboard");
 		} catch (error) {
+			if (error instanceof ApiError) {
+				console.error("[signup] API error details", {
+					status: error.status,
+					endpoint: error.endpoint,
+					method: error.method,
+					data: error.data,
+				});
+			}
+
 			setErrorMessage(
 				error instanceof Error
 					? error.message
@@ -85,6 +114,14 @@ export default function SignupPage() {
 			setIsSubmitting(false);
 		}
 	};
+
+	if (isCheckingAuth) {
+		return (
+			<div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8 text-slate-700">
+				<p className="text-sm">Checking session...</p>
+			</div>
+		);
+	}
 
 	return (
 		<div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8 text-slate-900">
