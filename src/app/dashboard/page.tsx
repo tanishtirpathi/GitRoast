@@ -85,7 +85,9 @@ export default function DashboardPage() {
             });
 
             const nextReply = data.startingreply?.trim();
-            setAiResponse(nextReply || "AI started, but no question was returned.");
+            const resolvedReply = nextReply || "AI started, but no question was returned.";
+            setAiResponse(resolvedReply);
+            speakAIData(resolvedReply);
         } catch (error) {
             if (error instanceof ApiError && error.status === 401) {
                 console.log(error)
@@ -118,7 +120,9 @@ export default function DashboardPage() {
             });
 
             const nextReply = data.reply?.trim();
-            setAiResponse(nextReply || "AI responded with an empty message.");
+            const resolvedReply = nextReply || "AI responded with an empty message.";
+            setAiResponse(resolvedReply);
+            speakAIData(resolvedReply);
             setAnswer("");
         } catch (error) {
             if (error instanceof ApiError && error.status === 401) {
@@ -131,6 +135,25 @@ export default function DashboardPage() {
             setIsSendingAnswer(false);
         }
     };
+
+    const speakAIData = (aiResponse: string) => {
+        if (typeof window === "undefined" || !("speechSynthesis" in window)) {
+            return;
+        }
+
+        if (!aiResponse) {
+            return;
+        }
+        const speech = new SpeechSynthesisUtterance(aiResponse);
+        speech.lang = "en-US";
+        speech.pitch = 1.2;
+        speech.rate = 1.1;
+        speech.volume = 1.5;
+
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(speech);
+    };
+
 
     return (
         <div className="dashboard-bg relative min-h-screen w-full overflow-hidden px-4 py-8 sm:px-8">
