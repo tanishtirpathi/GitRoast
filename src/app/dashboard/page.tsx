@@ -3,7 +3,7 @@
 import { ApiError, apiFetch } from "@/libs/api";
 import { useRouter } from "next/navigation";
 import AISide from "@/Components/AISide";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type MeResponse = {
     user?: {
@@ -20,6 +20,36 @@ type ChatResponse = {
     reply?: string;
 };
 
+type SpeechRecognitionAlternativeLike = {
+    transcript: string;
+};
+
+type SpeechRecognitionResultLike = {
+    isFinal: boolean;
+    0: SpeechRecognitionAlternativeLike;
+};
+
+type SpeechRecognitionEventLike = {
+    resultIndex: number;
+    results: ArrayLike<SpeechRecognitionResultLike>;
+};
+
+type BrowserSpeechRecognition = {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    onresult: ((event: SpeechRecognitionEventLike) => void) | null;
+    onerror: ((event: { error?: string }) => void) | null;
+    onend: (() => void) | null;
+    start: () => void;
+    stop: () => void;
+};
+
+type SpeechRecognitionWindow = Window & {
+    webkitSpeechRecognition?: new () => BrowserSpeechRecognition;
+    SpeechRecognition?: new () => BrowserSpeechRecognition;
+};
+
 export default function DashboardPage() {
     const router = useRouter();
     const [name, setName] = useState<string>("User");
@@ -29,6 +59,11 @@ export default function DashboardPage() {
     const [isStarting, setIsStarting] = useState(false);
     const [answer, setAnswer] = useState("");
     const [isSendingAnswer, setIsSendingAnswer] = useState(false);
+    const [isListening, setIsListening] = useState(false);
+    const [interimTranscript, setInterimTranscript] = useState("");
+    const [finalTranscript, setFinalTranscript] = useState("");
+    const [voiceError, setVoiceError] = useState<string | null>(null);
+    const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
     const currentHour = new Date().getHours();
     const greeting = currentHour < 12 ? "Good morning" : currentHour < 18 ? "Good afternoon" : "Good evening";
 
@@ -71,6 +106,47 @@ export default function DashboardPage() {
         };
     }, [router]);
 
+    useEffect(() => {
+        return () => {
+            recognitionRef.current?.stop();
+            if (typeof window !== "undefined" && "speechSynthesis" in window) {
+                window.speechSynthesis.cancel();
+            }
+        };
+    }, []);
+
+    const sendAnswerMessage = async (message: string) => {
+        const trimmedAnswer = message.trim();
+        if (!trimmedAnswer || isSendingAnswer) {
+            return;
+        }
+
+        setIsSendingAnswer(true);
+        setErrorMessage(null);
+
+        try {
+            const data = await apiFetch<ChatResponse>("/api/ai/chat", {
+                method: "POST",
+                body: JSON.stringify({ message: trimmedAnswer }),
+            });
+
+            const nextReply = data.reply?.trim();
+            const resolvedReply = nextReply || "AI responded with an empty message.";
+            setAiResponse(resolvedReply);
+            speakAIData(resolvedReply);
+            setAnswer("");
+        } catch (error) {
+            if (error instanceof ApiError && error.status === 401) {
+                router.replace("/login");
+                return;
+            }
+
+            setErrorMessage(error instanceof Error ? error.message : "Failed to send your answer.");
+        } finally {
+            setIsSendingAnswer(false);
+        }
+    };
+
     const handleStart = async () => {
         if (isStarting) {
             return;
@@ -104,36 +180,84 @@ export default function DashboardPage() {
 
     const handleSendAnswer = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        await sendAnswerMessage(answer);
+    };
 
-        const trimmedAnswer = answer.trim();
-        if (!trimmedAnswer || isSendingAnswer) {
+    const startListening = () => {
+        if (typeof window === "undefined") {
+            setVoiceError("Voice recognition is not available in this environment.");
             return;
         }
 
-        setIsSendingAnswer(true);
-        setErrorMessage(null);
+        const speechWindow = window as SpeechRecognitionWindow;
+        const RecognitionCtor = speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
 
-        try {
-            const data = await apiFetch<ChatResponse>("/api/ai/chat", {
-                method: "POST",
-                body: JSON.stringify({ message: trimmedAnswer }),
-            });
+        if (!RecognitionCtor) {
+            setVoiceError("This browser does not support speech recognition.");
+            return;
+        }
 
-            const nextReply = data.reply?.trim();
-            const resolvedReply = nextReply || "AI responded with an empty message.";
-            setAiResponse(resolvedReply);
-            speakAIData(resolvedReply);
-            setAnswer("");
-        } catch (error) {
-            if (error instanceof ApiError && error.status === 401) {
-                router.replace("/login");
-                return;
+        setVoiceError(null);
+        setInterimTranscript("");
+        setFinalTranscript("");
+
+        const recognition = new RecognitionCtor();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = "en-US";
+
+        recognition.onresult = (event) => {
+            let liveText = "";
+            let committedText = "";
+
+            for (let index = event.resultIndex; index < event.results.length; index += 1) {
+                const result = event.results[index];
+                const text = result[0]?.transcript ?? "";
+
+                if (result.isFinal) {
+                    committedText += `${text} `;
+                } else {
+                    liveText += text;
+                }
             }
 
-            setErrorMessage(error instanceof Error ? error.message : "Failed to send your answer.");
-        } finally {
-            setIsSendingAnswer(false);
+            if (committedText) {
+                setFinalTranscript((previous) => `${previous} ${committedText}`.trim());
+            }
+
+            setInterimTranscript(liveText.trim());
+        };
+
+        recognition.onerror = (event) => {
+            setVoiceError(event.error ? `Voice error: ${event.error}` : "Voice recognition failed.");
+            setIsListening(false);
+        };
+
+        recognition.onend = () => {
+            setIsListening(false);
+            setInterimTranscript("");
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+        setIsListening(true);
+    };
+
+    const stopListening = () => {
+        recognitionRef.current?.stop();
+        setIsListening(false);
+    };
+
+    const sendFinalTranscript = async () => {
+        const payload = `${finalTranscript} ${interimTranscript}`.trim();
+        if (!payload || isSendingAnswer) {
+            return;
         }
+
+        setAnswer(payload);
+        await sendAnswerMessage(payload);
+        setFinalTranscript("");
+        setInterimTranscript("");
     };
 
     const speakAIData = (aiResponse: string) => {
@@ -148,7 +272,7 @@ export default function DashboardPage() {
         speech.lang = "en-US";
         speech.pitch = 1.2;
         speech.rate = 1.1;
-        speech.volume = 1.5;
+        speech.volume = 1;
 
         window.speechSynthesis.cancel();
         window.speechSynthesis.speak(speech);
@@ -201,8 +325,49 @@ export default function DashboardPage() {
 
                             <h2 className="text-xl font-semibold text-slate-900">Send Your Answer</h2>
                             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-                                Type your answer below and send it to continue the interview.
+                                Speak your answer with the mic or type manually as fallback.
                             </p>
+
+                            <div className="mt-5 flex flex-wrap gap-3">
+                                <button
+                                    type="button"
+                                    onClick={startListening}
+                                    disabled={isListening || isSendingAnswer || isLoading}
+                                    className="rounded-2xl border border-emerald-300 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isListening ? "Listening..." : "Start Mic"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={stopListening}
+                                    disabled={!isListening}
+                                    className="rounded-2xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    Stop Mic
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={sendFinalTranscript}
+                                    disabled={!`${finalTranscript} ${interimTranscript}`.trim() || isSendingAnswer || isLoading}
+                                    className="rounded-2xl border border-slate-300 bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isSendingAnswer ? "Sending..." : "Send Voice Transcript"}
+                                </button>
+                            </div>
+
+                            <div className="mt-4 space-y-3 text-sm">
+                                <p className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700">
+                                    <span className="font-semibold">Live:</span> {interimTranscript || "Listening output will appear here..."}
+                                </p>
+                                <p className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-700">
+                                    <span className="font-semibold">Final:</span> {finalTranscript || "Final transcript will appear here..."}
+                                </p>
+                                {voiceError ? (
+                                    <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-700">{voiceError}</p>
+                                ) : null}
+                            </div>
 
                             <form onSubmit={handleSendAnswer} className="mt-5 space-y-4">
                                 <input
