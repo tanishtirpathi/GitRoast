@@ -25,7 +25,7 @@ export default function Home() {
         </Link>
       </header>
 
-      <main className="mx-auto mt-8 grid w-full max-w-6xl items-center gap-10 lg:grid-cols-[1.1fr_1fr] mt-20 px-10">
+      <main className="mx-auto mt-8 grid w-full max-w-6xl items-center gap-10 lg:grid-cols-[1.1fr_1fr] mt-15 px-10">
         <section>
           <h2 className={`${serif.className} mt-4 text-4xl leading-[0.95] text-slate-900 sm:text-7xl`}>
             Speak.
