@@ -3,6 +3,9 @@ import "dotenv/config";
 import { Response } from "express";
 import Convo from "../models/convo.model.js";
 import { AuthenticatedRequest } from "../middlewares/auth.middleware.js"
+import User from "../models/user.model.js";
+
+const MAX_INTERVIEW_QUESTIONS = 10;
 
 const apiKey = process.env.GEMINI_API_KEY;
 
@@ -31,6 +34,32 @@ export const handleChat = async (req: AuthenticatedRequest, res: Response): Prom
             res.status(400).json({ error: "Message must be a non-empty string." });
             return;
         }
+
+        const user = await User.findById(userId).select("interviewStarted interviewCompleted interviewQuestionCount");
+        if (!user) {
+            res.status(404).json({ error: "User not found." });
+            return;
+        }
+
+        const currentQuestionCount = user.interviewQuestionCount ?? 0;
+        if (!user.interviewStarted || user.interviewCompleted || currentQuestionCount >= MAX_INTERVIEW_QUESTIONS) {
+            if (!user.interviewCompleted && currentQuestionCount >= MAX_INTERVIEW_QUESTIONS) {
+                await User.updateOne(
+                    { _id: userId },
+                    { $set: { interviewStarted: false, interviewCompleted: true, interviewQuestionCount: MAX_INTERVIEW_QUESTIONS } },
+                );
+            }
+
+            res.status(409).json({
+                error: "Interview is closed. You cannot continue this interview.",
+                interviewCompleted: true,
+                questionCount: MAX_INTERVIEW_QUESTIONS,
+                maxQuestions: MAX_INTERVIEW_QUESTIONS,
+            });
+            return;
+        }
+
+        const nextQuestionNumber = currentQuestionCount + 1;
         // model of ai 
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
@@ -58,6 +87,8 @@ export const handleChat = async (req: AuthenticatedRequest, res: Response): Prom
                              on the user answer.and keep the conversation in flow 
 
                              also make sure u don't get destracted from the topic which is HTML and CSS and also make sure to ask short and simple question.
+                             This is question ${nextQuestionNumber} of ${MAX_INTERVIEW_QUESTIONS}.
+                             If this is question ${MAX_INTERVIEW_QUESTIONS}, ask your final question and end the interview politely.
                              
                             `;
 
@@ -79,7 +110,26 @@ export const handleChat = async (req: AuthenticatedRequest, res: Response): Prom
         }
         await convo.save();
 
-        res.json({ reply });
+        const updatedQuestionCount = Math.min(nextQuestionNumber, MAX_INTERVIEW_QUESTIONS);
+        const interviewCompleted = updatedQuestionCount >= MAX_INTERVIEW_QUESTIONS;
+
+        await User.updateOne(
+            { _id: userId },
+            {
+                $set: {
+                    interviewQuestionCount: updatedQuestionCount,
+                    interviewCompleted,
+                    interviewStarted: !interviewCompleted,
+                },
+            },
+        );
+
+        res.json({
+            reply,
+            interviewCompleted,
+            questionCount: updatedQuestionCount,
+            maxQuestions: MAX_INTERVIEW_QUESTIONS,
+        });
     } catch (error) {
         console.error("Gemini API Error:", error);
 
@@ -104,6 +154,46 @@ export const startChat = async (req: AuthenticatedRequest, res: Response): Promi
             console.log("Unauthorized access attempt to /chat endpoint.");
             return;
         }
+
+        const claimedStart = await User.findOneAndUpdate(
+            {
+                _id: userId,
+                $and: [
+                    { $or: [{ interviewStarted: false }, { interviewStarted: { $exists: false } }, { interviewStarted: null }] },
+                    { $or: [{ interviewCompleted: false }, { interviewCompleted: { $exists: false } }, { interviewCompleted: null }] },
+                    { $or: [{ interviewQuestionCount: 0 }, { interviewQuestionCount: { $exists: false } }, { interviewQuestionCount: null }] },
+                ],
+            },
+            { $set: { interviewStarted: true, interviewCompleted: false, interviewQuestionCount: 0 } },
+            { new: true },
+        ).select("interviewStarted interviewCompleted interviewQuestionCount");
+
+        if (!claimedStart) {
+            const user = await User.findById(userId).select("interviewStarted interviewCompleted interviewQuestionCount");
+            if (!user) {
+                res.status(404).json({ error: "User not found." });
+                return;
+            }
+
+            if (user.interviewCompleted) {
+                res.status(409).json({
+                    error: "Interview already completed. You cannot run this interview again.",
+                    interviewCompleted: true,
+                    questionCount: MAX_INTERVIEW_QUESTIONS,
+                    maxQuestions: MAX_INTERVIEW_QUESTIONS,
+                });
+                return;
+            }
+
+            res.status(409).json({
+                error: "Interview already started. You cannot start it twice.",
+                interviewCompleted: false,
+                questionCount: user.interviewQuestionCount ?? 0,
+                maxQuestions: MAX_INTERVIEW_QUESTIONS,
+            });
+            return;
+        }
+
         const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
         const StartingQuerstion = await model.generateContent(" ac as the Interviewer and ask a question based on this topic html and css make sure to ask short and simple question ");
@@ -117,9 +207,26 @@ export const startChat = async (req: AuthenticatedRequest, res: Response): Promi
         }
         await convo.save();
 
-        res.json({ startingreply });
+        await User.updateOne(
+            { _id: userId },
+            { $set: { interviewQuestionCount: 1, interviewStarted: true, interviewCompleted: false } },
+        );
+
+        res.json({
+            startingreply,
+            interviewCompleted: false,
+            questionCount: 1,
+            maxQuestions: MAX_INTERVIEW_QUESTIONS,
+        });
     } catch (error) {
         console.error("Gemini API Error:", error);
+
+        if (req.userId) {
+            await User.updateOne(
+                { _id: req.userId, interviewQuestionCount: 0 },
+                { $set: { interviewStarted: false, interviewCompleted: false } },
+            );
+        }
 
         let message = "Unknown error";
 

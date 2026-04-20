@@ -3,6 +3,9 @@ export interface IUser {
     email: string
     password: string
     RefreshToken: string
+  interviewStarted?: boolean
+  interviewCompleted?: boolean
+  interviewQuestionCount?: number
     createdAt: Date
     updatedAt: Date
 }

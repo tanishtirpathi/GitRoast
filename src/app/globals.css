@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f6f8fb;
-  --foreground: #12203a;
+  --background: #fdfdfd;
+  --foreground: #0f172a;
 }
 
 @theme inline {
@@ -12,75 +12,87 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #f6f8fb;
-    --foreground: #12203a;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), "Segoe UI", sans-serif;
+  font-family: var(--font-geist-sans), "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 .dashboard-bg {
-  background:
-    radial-gradient(circle at 8% 12%, rgba(35, 182, 230, 0.18) 0%, rgba(35, 182, 230, 0) 30%),
-    radial-gradient(circle at 90% 18%, rgba(255, 177, 87, 0.22) 0%, rgba(255, 177, 87, 0) 34%),
-    linear-gradient(145deg, #f8fbff 0%, #f2f7fb 46%, #f9fbf6 100%);
+  background: 
+    radial-gradient(at 0% 0%, rgba(56, 189, 248, 0.08) 0, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(16, 185, 129, 0.08) 0, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(245, 158, 11, 0.08) 0, transparent 50%),
+    radial-gradient(at 0% 100%, rgba(99, 102, 241, 0.08) 0, transparent 50%),
+    #ffffff;
 }
 
 .dashboard-orb {
   pointer-events: none;
   position: absolute;
   border-radius: 9999px;
-  filter: blur(50px);
-  opacity: 0.45;
-  animation: dashboardFloat 14s ease-in-out infinite;
+  filter: blur(80px);
+  opacity: 0.3;
+  animation: dashboardFloat 20s ease-in-out infinite;
 }
 
 .dashboard-orb-a {
-  left: -120px;
-  top: 12%;
-  height: 260px;
-  width: 260px;
-  background: #60a5fa;
+  left: -5%;
+  top: 10%;
+  height: 400px;
+  width: 400px;
+  background: linear-gradient(135deg, #0ea5e9, #2dd4bf);
 }
 
 .dashboard-orb-b {
-  right: -80px;
-  top: 60%;
-  height: 240px;
-  width: 240px;
-  animation-delay: 1.3s;
-  background: #34d399;
+  right: -5%;
+  bottom: 10%;
+  height: 350px;
+  width: 350px;
+  background: linear-gradient(135deg, #818cf8, #c084fc);
+  animation-delay: -5s;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .dashboard-reveal {
-  animation: dashboardReveal 0.55s ease-out both;
+  animation: dashboardReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes dashboardReveal {
   from {
     opacity: 0;
-    transform: translateY(16px);
+    transform: translateY(20px) scale(0.98);
   }
-
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
 @keyframes dashboardFloat {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-
-  50% {
-    transform: translate3d(0, -12px, 0) scale(1.06);
-  }
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  33% { transform: translate(30px, -50px) rotate(5deg); }
+  66% { transform: translate(-20px, 30px) rotate(-5deg); }
 }
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+

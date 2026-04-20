@@ -6,15 +6,28 @@ type AISideProps = {
 
 export default function AISide({ responseText }: AISideProps) {
     return (
-        <section className="dashboard-reveal rounded-3xl border border-slate-200 bg-gradient-to-br from-sky-50 via-white to-amber-50 p-6 shadow-[0_16px_48px_rgba(2,32,71,0.1)]">
-            <div className="mb-5 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">AI View</p>
-                <span className="rounded-full border border-sky-200 bg-sky-100 px-3 py-1 text-xs font-medium text-sky-800">
-                    Active
-                </span>
+        <section className="dashboard-reveal flex h-full min-h-0 flex-col rounded-[2rem] border border-white/40 bg-white/60 p-4 shadow-sm backdrop-blur-xl">
+            <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                    <div className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse" />
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Interviewer View</p>
+                </div>
             </div>
-            <Image src="/assets/ai-side.png" alt="AI Side" width={800} height={600} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" />
-            <p className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-slate-700">{responseText}</p>
+            <div className="flex-1 min-h-0 flex flex-col gap-4">
+                <div className="relative group overflow-hidden rounded-[1.5rem] border border-slate-100 bg-slate-50 flex-shrink-0" style={{ height: '40%' }}>
+                    <Image
+                        src="/assets/ai-side.png"
+                        alt="AI Side"
+                        fill
+                        className="object-cover"
+                    />
+                </div>
+                <div className="relative flex-1 min-h-0">
+                    <div className="absolute inset-0 overflow-auto custom-scrollbar rounded-2xl bg-white/40 p-5 text-[1.1rem] font-medium leading-relaxed text-slate-700 border border-slate-50 shadow-inner">
+                        {responseText || "Waiting for user input..."}
+                    </div>
+                </div>
+            </div>
         </section>
     );
 }

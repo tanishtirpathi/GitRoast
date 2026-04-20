@@ -10,6 +10,9 @@ const UserSchema = new Schema<IUser, mongoose.Model<IUser, {}, IUserMethods>, IU
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, trim: true, lowercase: true },
     RefreshToken: { type: String},
+  interviewStarted: { type: Boolean, default: false },
+  interviewCompleted: { type: Boolean, default: false },
+  interviewQuestionCount: { type: Number, default: 0, min: 0, max: 10 },
     password: { type: String, required: true, minlength: 6, select: false },
 }, { timestamps: true })
 
